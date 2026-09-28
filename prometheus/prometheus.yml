@@ -1,0 +1,10 @@
+global:
+  scrape_interval: 5s
+
+rule_files:
+  - "alert_rules.yml"
+
+scrape_configs:
+  - job_name: "flask-app"
+    static_configs:
+      - targets: ["web:5000"]

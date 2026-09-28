@@ -1,0 +1,41 @@
+services:
+  web:
+    build: ./starter-app
+    ports:
+      - "5004:5000"
+    environment:
+      - REDIS_HOST=redis
+      - APP_VERSION=${APP_VERSION:-dev}
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - app-network
+
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+    volumes:
+      - redis-data:/data
+    networks:
+      - app-network
+
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
+    networks:
+      - app-network
+
+networks:
+  app-network:
+
+volumes:
+  redis-data:
