@@ -56,3 +56,58 @@ jobs:
             ${{ env.IMAGE }}:latest
             ${{ env.IMAGE }}:${{ steps.tags.outputs.sha_tag }}
             ${{ env.IMAGE }}:${{ steps.tags.outputs.semver_tag }}
+
+  deploy:
+    runs-on: self-hosted
+    needs: build-and-push
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Se connecter a ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Sauvegarder le tag actuellement deploye (pour rollback)
+        id: previous
+        run: |
+          CURRENT=$(docker inspect --format='{{index .Config.Labels "deployed_sha"}}' devops-evaluation-web 2>/dev/null || echo "none")
+          echo "previous_sha=$CURRENT" >> "$GITHUB_OUTPUT"
+
+      - name: Deployer la nouvelle version
+        run: |
+          docker rm -f devops-evaluation-web 2>/dev/null || true
+          docker run -d \
+            --name devops-evaluation-web \
+            --label deployed_sha=${{ needs.build-and-push.outputs.sha_tag }} \
+            -p 5099:5000 \
+            -e REDIS_HOST=host.docker.internal \
+            ${{ env.IMAGE }}:${{ needs.build-and-push.outputs.sha_tag }}
+
+      - name: Verifier le healthcheck (3 tentatives)
+        id: healthcheck
+        run: |
+          for i in 1 2 3; do
+            sleep 5
+            if curl -sf http://localhost:5099/health; then
+              echo "Healthcheck OK a la tentative $i"
+              exit 0
+            fi
+            echo "Tentative $i echouee"
+          done
+          exit 1
+
+      - name: Rollback si le healthcheck a echoue
+        if: failure() && steps.previous.outputs.previous_sha != 'none'
+        run: |
+          echo "Rollback vers ${{ steps.previous.outputs.previous_sha }}"
+          docker rm -f devops-evaluation-web 2>/dev/null || true
+          docker run -d \
+            --name devops-evaluation-web \
+            --label deployed_sha=${{ steps.previous.outputs.previous_sha }} \
+            -p 5099:5000 \
+            -e REDIS_HOST=host.docker.internal \
+            ${{ env.IMAGE }}:${{ steps.previous.outputs.previous_sha }}
