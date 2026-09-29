@@ -8,7 +8,8 @@ RUN pip install --user --no-cache-dir -r requirements.txt
 
 # ---- Stage 2 : image finale ----
 FROM python:3.12-slim
-
+ARG APP_VERSION=dev
+ENV APP_VERSION=$APP_VERSION
 WORKDIR /app
 
 RUN useradd --create-home appuser
