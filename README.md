@@ -78,3 +78,11 @@ Déclenché sur chaque push vers `main`, ou manuellement via `workflow_dispatch`
 2. **deploy** — s'exécute sur un runner self-hosted. Déploie la nouvelle image, vérifie `/health` avec 3 tentatives espacées de 5 secondes. Si le healthcheck échoue, l'ancienne version est automatiquement restaurée (rollback).
 
 ## Image publiée
+ghcr.io/acheraf942/devops-evaluation
+
+
+## Dockerfile
+
+Build multi-stage sur `python:3.12-slim` :
+- Premier stage : installe les dépendances.
+- Second stage : ne garde que le nécessaire à l'exécution, tourne avec un utilisateur non-root (`appuser`), inclut un `HEALTHCHECK` qui appelle réellement `/health`.
